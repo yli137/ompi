@@ -151,7 +151,6 @@ OPAL_DECLSPEC int32_t opal_iovec_pack( opal_convertor_t *outside_convertor, stru
                 uint32_t *out_size, size_t *max_data );
 OPAL_DECLSPEC int32_t opal_iovec_unpack( opal_convertor_t *outside_convertor, struct iovec *out_iov,
                 uint32_t *out_size, size_t *max_data );
-OPAL_DECLSPEC int32_t opal_prefetch_line( opal_convertor_t *convertor, size_t *max_data );
 
 /*
  *
