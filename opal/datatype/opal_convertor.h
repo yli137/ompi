@@ -62,9 +62,9 @@ union dt_elem_desc;
 typedef struct opal_convertor_t opal_convertor_t;
 
 typedef int32_t (*convertor_advance_fct_t)( opal_convertor_t* pConvertor,
-                                            struct iovec* iov,
-                                            uint32_t* out_size,
-                                            size_t* max_data );
+        struct iovec* iov,
+        uint32_t* out_size,
+        size_t* max_data );
 typedef void*(*memalloc_fct_t)( size_t* pLength, void* userdata );
 typedef void*(*memcpy_fct_t)( void* dest, const void* src, size_t n, opal_convertor_t* pConvertor );
 
@@ -91,7 +91,7 @@ struct opal_convertor_t {
     uint32_t                      flags;          /**< the properties of this convertor */
     size_t                        local_size;     /**< overall length data on local machine, compared to bConverted */
     size_t                        remote_size;    /**< overall length data on remote machine, compared to bConverted */
-    const opal_datatype_t*        pDesc;          /**< the datatype description associated with the convertor */
+    opal_datatype_t*        pDesc;          /**< the datatype description associated with the convertor */
     const dt_type_desc_t*         use_desc;       /**< the version used by the convertor (normal or optimized) */
     opal_datatype_count_t         count;          /**< the total number of full datatype elements */
 
@@ -138,13 +138,20 @@ static inline uint32_t opal_convertor_get_checksum( opal_convertor_t* convertor 
  *
  */
 OPAL_DECLSPEC int32_t opal_convertor_pack( opal_convertor_t* pConv, struct iovec* iov,
-                                           uint32_t* out_size, size_t* max_data );
+        uint32_t* out_size, size_t* max_data );
 
 /*
  *
  */
 OPAL_DECLSPEC int32_t opal_convertor_unpack( opal_convertor_t* pConv, struct iovec* iov,
-                                             uint32_t* out_size, size_t* max_data );
+        uint32_t* out_size, size_t* max_data );
+OPAL_DECLSPEC int32_t opal_generate_iovec( opal_datatype_t *pData );
+OPAL_DECLSPEC int32_t opal_iovec_set_position( opal_convertor_t *pConv, size_t *position );
+OPAL_DECLSPEC int32_t opal_iovec_pack( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+                uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_iovec_unpack( opal_convertor_t *outside_convertor, struct iovec *out_iov,
+                uint32_t *out_size, size_t *max_data );
+OPAL_DECLSPEC int32_t opal_prefetch_line( opal_convertor_t *convertor, size_t *max_data );
 
 /*
  *
@@ -205,7 +212,7 @@ opal_convertor_compute_remote_size( opal_convertor_t* pConv );
  * Return the local size of the convertor (count times the size of the datatype).
  */
 static inline void opal_convertor_get_packed_size( const opal_convertor_t* pConv,
-                                                   size_t* pSize )
+        size_t* pSize )
 {
     *pSize = pConv->local_size;
 }
@@ -217,7 +224,7 @@ static inline void opal_convertor_get_packed_size( const opal_convertor_t* pConv
  * identical.
  */
 static inline void opal_convertor_get_unpacked_size( const opal_convertor_t* pConv,
-                                                     size_t* pSize )
+        size_t* pSize )
 {
     if( pConv->flags & CONVERTOR_HOMOGENEOUS ) {
         *pSize = pConv->local_size;
@@ -236,14 +243,14 @@ static inline void opal_convertor_get_unpacked_size( const opal_convertor_t* pCo
  * contiguous piece of memory.
  */
 static inline void opal_convertor_get_current_pointer( const opal_convertor_t* pConv,
-                                                       void** position )
+        void** position )
 {
     unsigned char* base = pConv->pBaseBuf + pConv->bConverted + pConv->pDesc->true_lb;
     *position = (void*)base;
 }
 
 static inline void opal_convertor_get_offset_pointer( const opal_convertor_t* pConv,
-                                                      size_t offset, void** position )
+        size_t offset, void** position )
 {
     unsigned char* base = pConv->pBaseBuf + offset + pConv->pDesc->true_lb;
     *position = (void*)base;
@@ -254,16 +261,16 @@ static inline void opal_convertor_get_offset_pointer( const opal_convertor_t* pC
  *
  */
 OPAL_DECLSPEC int32_t opal_convertor_prepare_for_send( opal_convertor_t* convertor,
-                                                       const struct opal_datatype_t* datatype,
-                                                       size_t count,
-                                                       const void* pUserBuf);
+        const struct opal_datatype_t* datatype,
+        size_t count,
+        const void* pUserBuf);
 
 static inline int32_t opal_convertor_copy_and_prepare_for_send( const opal_convertor_t* pSrcConv,
-                                                                const struct opal_datatype_t* datatype,
-                                                                size_t count,
-                                                                const void* pUserBuf,
-                                                                int32_t flags,
-                                                                opal_convertor_t* convertor )
+        const struct opal_datatype_t* datatype,
+        size_t count,
+        const void* pUserBuf,
+        int32_t flags,
+        opal_convertor_t* convertor )
 {
     convertor->remoteArch = pSrcConv->remoteArch;
     convertor->flags      = pSrcConv->flags | flags;
@@ -276,15 +283,15 @@ static inline int32_t opal_convertor_copy_and_prepare_for_send( const opal_conve
  *
  */
 OPAL_DECLSPEC int32_t opal_convertor_prepare_for_recv( opal_convertor_t* convertor,
-                                                       const struct opal_datatype_t* datatype,
-                                                       size_t count,
-                                                       const void* pUserBuf );
+        const struct opal_datatype_t* datatype,
+        size_t count,
+        const void* pUserBuf );
 static inline int32_t opal_convertor_copy_and_prepare_for_recv( const opal_convertor_t* pSrcConv,
-                                                                const struct opal_datatype_t* datatype,
-                                                                size_t count,
-                                                                const void* pUserBuf,
-                                                                int32_t flags,
-                                                                opal_convertor_t* convertor )
+        const struct opal_datatype_t* datatype,
+        size_t count,
+        const void* pUserBuf,
+        int32_t flags,
+        opal_convertor_t* convertor )
 {
     convertor->remoteArch = pSrcConv->remoteArch;
     convertor->flags      = (pSrcConv->flags | flags);
@@ -298,9 +305,9 @@ static inline int32_t opal_convertor_copy_and_prepare_for_recv( const opal_conve
  */
 OPAL_DECLSPEC int32_t
 opal_convertor_raw( opal_convertor_t* convertor,  /* [IN/OUT] */
-                    struct iovec* iov,            /* [IN/OUT] */
-                    uint32_t* iov_count,          /* [IN/OUT] */
-                    size_t* length );             /* [OUT]    */
+        struct iovec* iov,            /* [IN/OUT] */
+        uint32_t* iov_count,          /* [IN/OUT] */
+        size_t* length );             /* [OUT]    */
 
 
 /*
@@ -308,10 +315,32 @@ opal_convertor_raw( opal_convertor_t* convertor,  /* [IN/OUT] */
  */
 OPAL_DECLSPEC int32_t
 opal_convertor_set_position_nocheck( opal_convertor_t* convertor,
-                                     size_t* position );
-static inline int32_t
+        size_t* position );
+
+    static inline int32_t
+opal_convertor_set_position1( opal_convertor_t* convertor,
+        size_t* position )
+{
+
+    if( OPAL_UNLIKELY(convertor->local_size <= *position) ) {
+        convertor->flags |= CONVERTOR_COMPLETED;
+        convertor->bConverted = convertor->local_size;
+        *position = convertor->bConverted;
+        return OPAL_SUCCESS;
+    }
+    if( OPAL_LIKELY((*position) == convertor->bConverted) ){
+        return OPAL_SUCCESS;
+    }
+
+    convertor->flags &= ~CONVERTOR_COMPLETED;
+
+
+    return opal_iovec_set_position( convertor, position );
+}
+
+    static inline int32_t
 opal_convertor_set_position( opal_convertor_t* convertor,
-                             size_t* position )
+        size_t* position )
 {
     /*
      * Do not allow the convertor to go outside the data boundaries. This test include
@@ -334,9 +363,9 @@ opal_convertor_set_position( opal_convertor_t* convertor,
 
     if( (convertor->flags & OPAL_DATATYPE_FLAG_NO_GAPS) &&
 #if defined(CHECKSUM)
-        !(convertor->flags & CONVERTOR_WITH_CHECKSUM) &&
+            !(convertor->flags & CONVERTOR_WITH_CHECKSUM) &&
 #endif  /* defined(CHECKSUM) */
-        (convertor->flags & (CONVERTOR_SEND | CONVERTOR_HOMOGENEOUS)) ) {
+            (convertor->flags & (CONVERTOR_SEND | CONVERTOR_HOMOGENEOUS)) ) {
         /* Contiguous and no checkpoint and no homogeneous unpack */
         convertor->bConverted = *position;
         return OPAL_SUCCESS;
@@ -348,10 +377,10 @@ opal_convertor_set_position( opal_convertor_t* convertor,
 /*
  *
  */
-static inline int32_t
+    static inline int32_t
 opal_convertor_personalize( opal_convertor_t* convertor,
-                            uint32_t flags,
-                            size_t* position )
+        uint32_t flags,
+        size_t* position )
 {
     convertor->flags |= flags;
 
@@ -365,14 +394,14 @@ opal_convertor_personalize( opal_convertor_t* convertor,
  */
 OPAL_DECLSPEC int
 opal_convertor_clone( const opal_convertor_t* source,
-                      opal_convertor_t* destination,
-                      int32_t copy_stack );
+        opal_convertor_t* destination,
+        int32_t copy_stack );
 
-static inline int
+    static inline int
 opal_convertor_clone_with_position( const opal_convertor_t* source,
-                                    opal_convertor_t* destination,
-                                    int32_t copy_stack,
-                                    size_t* position )
+        opal_convertor_t* destination,
+        int32_t copy_stack,
+        size_t* position )
 {
     (void)opal_convertor_clone( source, destination, copy_stack );
     return opal_convertor_set_position( destination, position );
@@ -386,16 +415,16 @@ opal_convertor_dump( opal_convertor_t* convertor );
 
 OPAL_DECLSPEC void
 opal_datatype_dump_stack( const dt_stack_t* pStack,
-                          int stack_pos,
-                          const union dt_elem_desc* pDesc,
-                          const char* name );
+        int stack_pos,
+        const union dt_elem_desc* pDesc,
+        const char* name );
 
 /*
  *
  */
 OPAL_DECLSPEC int
 opal_convertor_generic_simple_position( opal_convertor_t* pConvertor,
-                                        size_t* position );
+        size_t* position );
 
 END_C_DECLS
 

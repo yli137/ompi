@@ -26,14 +26,16 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include <stdio.h>
+
 #include "opal/datatype/opal_datatype.h"
 #include "opal/datatype/opal_convertor.h"
 #include "opal/datatype/opal_datatype_internal.h"
 
-static int32_t
+    static int32_t
 opal_datatype_optimize_short( opal_datatype_t* pData,
-                              size_t count,
-                              dt_type_desc_t* pTypeDesc )
+        size_t count,
+        dt_type_desc_t* pTypeDesc )
 {
     dt_elem_desc_t* pElemDesc;
     dt_stack_t *pOrigStack, *pStack; /* pointer to the position on the stack */
@@ -58,12 +60,12 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
             ddt_endloop_desc_t* end_loop = &(pData->desc.desc[pos_desc].end_loop);
             if( 0 != last.count ) {
                 CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                             last.blocklen, last.count, last.disp, last.extent );
+                        last.blocklen, last.count, last.disp, last.extent );
                 pElemDesc++; nbElems++;
                 last.count= 0;
             }
             CREATE_LOOP_END( pElemDesc, nbElems - pStack->index + 1,  /* # of elems in this loop */
-                             end_loop->first_elem_disp, end_loop->size, end_loop->common.flags );
+                    end_loop->first_elem_disp, end_loop->size, end_loop->common.flags );
             if( --stack_pos >= 0 ) {  /* still something to do ? */
                 ddt_loop_desc_t* pStartLoop = &(pTypeDesc->desc[pStack->index - 1].loop);
                 pStartLoop->items = pElemDesc->end_loop.items;
@@ -89,7 +91,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
                     current = &pData->desc.desc[pos_desc + i].elem;
                     assert(1 ==  current->count);
                     if( (current->common.type == OPAL_DATATYPE_LOOP) ||
-                        compress.common.type != current->common.type ) {
+                            compress.common.type != current->common.type ) {
                         compress.common.type = OPAL_DATATYPE_UINT1;
                         compress.blocklen = end_loop->size;
                         break;
@@ -123,7 +125,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
 
             if( 0 != last.count ) {  /* Generate the pending element */
                 CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                             last.blocklen, last.count, last.disp, last.extent );
+                        last.blocklen, last.count, last.disp, last.extent );
                 pElemDesc++; nbElems++;
                 last.count       = 0;
                 last.common.type = OPAL_DATATYPE_LOOP;
@@ -136,7 +138,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
                     for( uint32_t j = 0; j < (loop->items - 1); j++ ) {
                         current = &pData->desc.desc[pos_desc + index + j].elem;
                         CREATE_ELEM( pElemDesc, current->common.type, current->common.flags,
-                                     current->blocklen, current->count, current->disp + elem_displ, current->extent );
+                                current->blocklen, current->count, current->disp + elem_displ, current->extent );
                         pElemDesc++; nbElems++;
                     }
                     elem_displ += loop->extent;
@@ -151,7 +153,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
             pos_desc++;
             DDT_DUMP_STACK( pStack, stack_pos, pData->desc.desc, "advance loops" );
 
-        complete_loop:
+complete_loop:
             total_disp = pStack->disp;  /* update the displacement */
             continue;
         }
@@ -159,39 +161,23 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
             current = &pData->desc.desc[pos_desc].elem;
             pos_desc++;  /* point to the next element as current points to the current one */
 
-          fuse_loops:
+fuse_loops:
             if( 0 == last.count ) {  /* first data of the datatype */
                 last = *current;
                 continue;  /* next data */
-            } else {  /* can we merge it in order to decrease count */
-                if( (ptrdiff_t)last.blocklen * (ptrdiff_t)opal_datatype_basicDatatypes[last.common.type]->size == last.extent ) {
-                    last.extent *= last.count;
-                    last.blocklen *= last.count;
-                    last.count = 1;
-                }
             }
 
             /* are the two elements compatible: aka they have very similar values and they
              * can be merged together by increasing the count, and/or changing the extent.
              */
             if( (last.blocklen * opal_datatype_basicDatatypes[last.common.type]->size) ==
-                (current->blocklen * opal_datatype_basicDatatypes[current->common.type]->size) ) {
+                    (current->blocklen * opal_datatype_basicDatatypes[current->common.type]->size) ) {
                 ddt_elem_desc_t save = last;  /* safekeep the type and blocklen */
                 if( last.common.type != current->common.type ) {
                     last.blocklen    *= opal_datatype_basicDatatypes[last.common.type]->size;
                     last.common.type  = OPAL_DATATYPE_UINT1;
                 }
 
-                if( (last.extent * (ptrdiff_t)last.count + last.disp) == current->disp ) {
-                    if( 1 == current->count ) {
-                        last.count++;
-                        continue;
-                    }
-                    if( last.extent == current->extent ) {
-                        last.count += current->count;
-                        continue;
-                    }
-                }
                 if( 1 == last.count ) {
                     /* we can ignore the extent of the element with count == 1 and merge them together if their displacements match */
                     if( 1 == current->count ) {
@@ -202,7 +188,17 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
                     /* can we compute a matching displacement ? */
                     if( (last.disp + current->extent) == current->disp ) {
                         last.extent = current->extent;
-                        last.count = current->count + last.count;
+                        last.count = current->count + 1;
+                        continue;
+                    }
+                }
+                if( (last.extent * (ptrdiff_t)last.count + last.disp) == current->disp ) {
+                    if( 1 == current->count ) {
+                        last.count++;
+                        continue;
+                    }
+                    if( last.extent == current->extent ) {
+                        last.count += current->count;
                         continue;
                     }
                 }
@@ -214,10 +210,10 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
              * blocklen of the other.
              */
             if( (ptrdiff_t)(last.disp + (last.count - 1) * last.extent + last.blocklen * opal_datatype_basicDatatypes[last.common.type]->size) ==
-                current->disp ) {
+                    current->disp ) {
                 if( last.count != 1 ) {
                     CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                                 last.blocklen, last.count - 1, last.disp, last.extent );
+                            last.blocklen, last.count - 1, last.disp, last.extent );
                     pElemDesc++; nbElems++;
                     last.disp += (last.count - 1) * last.extent;
                     last.count = 1;
@@ -226,13 +222,13 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
                     last.blocklen += current->blocklen;
                 } else {
                     last.blocklen = ((last.blocklen * opal_datatype_basicDatatypes[last.common.type]->size) +
-                                     (current->blocklen * opal_datatype_basicDatatypes[current->common.type]->size));
+                            (current->blocklen * opal_datatype_basicDatatypes[current->common.type]->size));
                     last.common.type = OPAL_DATATYPE_UINT1;
                 }
                 last.extent += current->extent;
                 if( current->count != 1 ) {
                     CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                                 last.blocklen, last.count, last.disp, last.extent );
+                            last.blocklen, last.count, last.disp, last.extent );
                     pElemDesc++; nbElems++;
                     last = *current;
                     last.count -= 1;
@@ -241,7 +237,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
                 continue;
             }
             CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                         last.blocklen, last.count, last.disp, last.extent );
+                    last.blocklen, last.count, last.disp, last.extent );
             pElemDesc++; nbElems++;
             last = *current;
         }
@@ -249,7 +245,7 @@ opal_datatype_optimize_short( opal_datatype_t* pData,
 
     if( 0 != last.count ) {
         CREATE_ELEM( pElemDesc, last.common.type, OPAL_DATATYPE_FLAG_BASIC,
-                     last.blocklen, last.count, last.disp, last.extent );
+                last.blocklen, last.count, last.disp, last.extent );
         pElemDesc++; nbElems++;
     }
     /* cleanup the stack */
@@ -263,7 +259,10 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
     ddt_endloop_desc_t* pLast = &(pData->desc.desc[pData->desc.used].end_loop);
     ptrdiff_t first_elem_disp = 0;
 
-    if( pData->flags & OPAL_DATATYPE_FLAG_COMMITTED ) return OPAL_SUCCESS;
+    if( pData->flags & OPAL_DATATYPE_FLAG_COMMITTED ){
+        return OPAL_SUCCESS;
+    }
+
     pData->flags |= OPAL_DATATYPE_FLAG_COMMITTED;
 
     /* We have to compute the displacement of the first non loop item in the
@@ -310,5 +309,38 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
         pLast->first_elem_disp = first_elem_disp;
         pLast->size            = pData->size;
     }
+
+    /* generate iovec */
+    if( pData->iov == NULL )
+        opal_generate_iovec( pData );
+
     return OPAL_SUCCESS;
+}
+
+int32_t 
+opal_generate_iovec( opal_datatype_t *pData )
+{
+    opal_convertor_t *local_convertor = opal_convertor_create( opal_local_arch, 0 );
+
+    size_t max = SIZE_MAX;
+    int rc;
+
+    opal_convertor_prepare_for_send( local_convertor, pData, 1, (void*)0 );
+
+    pData->iovcnt = 4;
+    uint32_t save_iov = 0;
+    uint32_t leftover_iovec = 0;
+    do {
+        pData->iovcnt *= 2;
+        pData->iov = realloc( pData->iov, sizeof(struct iovec) * pData->iovcnt );
+        leftover_iovec = pData->iovcnt - save_iov;
+        rc = opal_convertor_raw( local_convertor, pData->iov + save_iov, &leftover_iovec, &max );
+        leftover_iovec += save_iov;  /* for the case we leave the loop */
+        save_iov = pData->iovcnt;
+    } while (0 == rc);
+
+    pData->iov = realloc( pData->iov, sizeof(struct iovec) * leftover_iovec );
+    pData->iovcnt = leftover_iovec;
+
+    return 1;
 }
