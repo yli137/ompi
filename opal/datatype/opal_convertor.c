@@ -335,9 +335,6 @@ opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
         convertor->pStack[1].disp = 0;
         convertor->bConverted = 0;
 
-        /* prefetch init */
-        convertor->pStack[2].index = 0;
-        convertor->pStack[2].count = convertor->count;
         return 0;
     }
 
