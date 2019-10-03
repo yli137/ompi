@@ -331,7 +331,7 @@ opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
     if( 0 == *position ) {
         convertor->pStack[0].count = convertor->count;
         convertor->pStack[0].disp = 0;
-        convertor->pStack[3].index = 0;
+        convertor->pStack[1].index = 0;
         convertor->pStack[1].disp = 0;
         convertor->bConverted = 0;
 
@@ -360,11 +360,42 @@ opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
         track += iov[i].iov_len;
     }
 
-    convertor->pStack[3].index = i;
+    convertor->pStack[1].index = i;
     convertor->pStack[1].disp = local_position - track;
     convertor->pStack[0].disp = done_count * (pData->ub - pData->lb);
 
     return 0;
+}
+
+//OPAL_PREFETCH(address,rw,locality)
+    int32_t
+opal_prefetch_line( opal_convertor_t *convertor, size_t *max_data )
+{
+    struct iovec *iov = convertor->pDesc->iov;
+    size_t leftover = *max_data;
+    int32_t i = convertor->pStack[2].index;
+    const int32_t linebreak = 20;
+
+    /* use stack 2 count as bookkeeping
+     * index of which iovec stopped prev
+     * count of which should start 
+     * */
+    if( (convertor->pStack[0].count - convertor->pStack[2].count < linebreak) &&
+            (convertor->pStack[2].count == 0) ){
+
+        for( uint32_t j = 0; j < 10 && convertor->pStack[2].count != 0; j++ ){
+            OPAL_PREFETCH( iov[i].iov_base, 0, 0 );
+            i++;
+            if( i == convertor->pDesc->iovcnt ){
+                i = 0;
+                convertor->pStack[2].count--;
+            }
+        }
+    }
+
+    convertor->pStack[2].index = i;
+
+    return 1;
 }
 
     int32_t
@@ -384,10 +415,10 @@ opal_iovec_pack( opal_convertor_t *convertor,
     iov_track = out_iov[iov_count].iov_len;
 
     while( convertor->pStack[0].count ){
-        for( i = convertor->pStack[3].index; i < pData->iovcnt; i++ ) {
+        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ) {
             /* exceed chunk size */
             if( track == 0 ){
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 goto complete_pack;
             }
 
@@ -397,7 +428,7 @@ restart_pack:
                         src + (ptrdiff_t)(iov[i].iov_base) + convertor->pStack[1].disp,
                         iov_track);
                 convertor->pStack[1].disp += iov_track;
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 track -= iov_track;
 
                 iov_count++;
@@ -416,7 +447,7 @@ restart_pack:
                         track);
 
                 convertor->pStack[1].disp  += track;
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 track = 0;
 
                 goto complete_pack;
@@ -435,7 +466,7 @@ restart_pack:
 
 
         convertor->pStack[0].disp += pData->ub - pData->lb;
-        convertor->pStack[3].index = 0;
+        convertor->pStack[1].index = 0;
         convertor->pStack[0].count--;
 
         src += pData->ub - pData->lb;
@@ -470,10 +501,10 @@ opal_iovec_unpack( opal_convertor_t *convertor,
     iov_track = out_iov[iov_count].iov_len;
 
     while( convertor->pStack[0].count ) {
-        for( i = convertor->pStack[3].index; i < pData->iovcnt; i++ ) {
+        for( i = convertor->pStack[1].index; i < pData->iovcnt; i++ ) {
             /* exceed chunk size */
             if( track == 0 ){
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 goto complete_unpack;
             }
 restart_unpack:
@@ -482,7 +513,7 @@ restart_unpack:
                         src,
                         iov_track);
                 convertor->pStack[1].disp += iov_track;
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 track -= iov_track;
 
                 iov_count++;
@@ -501,7 +532,7 @@ restart_unpack:
                         track);
 
                 convertor->pStack[1].disp += track;
-                convertor->pStack[3].index = i;
+                convertor->pStack[1].index = i;
                 track = 0;
                 goto complete_unpack;  /* jump outside via the last if */
             }
@@ -517,7 +548,7 @@ restart_unpack:
         }
 
         convertor->pStack[0].disp += pData->ub - pData->lb;
-        convertor->pStack[3].index = 0;
+        convertor->pStack[1].index = 0;
         convertor->pStack[0].count--;
         dst += pData->ub - pData->lb;
     }
@@ -605,7 +636,7 @@ opal_convertor_create_stack_at_begining( opal_convertor_t* convertor,
      */
     /* pStack[0].index was -1 */
     pStack[0].index = -1;
-    pStack[3].index = 0;
+//    pStack[3].index = 0;
     pStack[0].count = convertor->count;
     pStack[0].disp  = 0;
     pStack[0].type  = OPAL_DATATYPE_LOOP;

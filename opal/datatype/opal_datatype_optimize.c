@@ -317,7 +317,7 @@ int32_t opal_datatype_commit( opal_datatype_t * pData )
     return OPAL_SUCCESS;
 }
 
-int32_t 
+    int32_t 
 opal_generate_iovec( opal_datatype_t *pData )
 {
     opal_convertor_t *local_convertor = opal_convertor_create( opal_local_arch, 0 );
@@ -337,6 +337,7 @@ opal_generate_iovec( opal_datatype_t *pData )
         rc = opal_convertor_raw( local_convertor, pData->iov + save_iov, &leftover_iovec, &max );
         leftover_iovec += save_iov;  /* for the case we leave the loop */
         save_iov = pData->iovcnt;
+
     } while (0 == rc);
 
     pData->iov = realloc( pData->iov, sizeof(struct iovec) * leftover_iovec );
