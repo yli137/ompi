@@ -327,7 +327,7 @@ opal_generate_iovec( opal_datatype_t *pData )
 
     opal_convertor_prepare_for_send( local_convertor, pData, 1, (void*)0 );
 
-    pData->iovcnt = 4;
+    pData->iovcnt = 512;
     uint32_t save_iov = 0;
     uint32_t leftover_iovec = 0;
     do {
