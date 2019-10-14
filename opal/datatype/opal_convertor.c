@@ -367,37 +367,6 @@ opal_iovec_set_position( opal_convertor_t *convertor, size_t *position )
     return 0;
 }
 
-//OPAL_PREFETCH(address,rw,locality)
-    int32_t
-opal_prefetch_line( opal_convertor_t *convertor, size_t *max_data )
-{
-    struct iovec *iov = convertor->pDesc->iov;
-    size_t leftover = *max_data;
-    int32_t i = convertor->pStack[2].index;
-    const int32_t linebreak = 20;
-
-    /* use stack 2 count as bookkeeping
-     * index of which iovec stopped prev
-     * count of which should start 
-     * */
-    if( (convertor->pStack[0].count - convertor->pStack[2].count < linebreak) &&
-            (convertor->pStack[2].count == 0) ){
-
-        for( uint32_t j = 0; j < 10 && convertor->pStack[2].count != 0; j++ ){
-            OPAL_PREFETCH( iov[i].iov_base, 0, 0 );
-            i++;
-            if( i == convertor->pDesc->iovcnt ){
-                i = 0;
-                convertor->pStack[2].count--;
-            }
-        }
-    }
-
-    convertor->pStack[2].index = i;
-
-    return 1;
-}
-
     int32_t
 opal_iovec_pack( opal_convertor_t *convertor,
         struct iovec *out_iov,
